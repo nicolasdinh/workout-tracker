@@ -1,0 +1,348 @@
+import { useState, useEffect, useCallback } from 'react';
+import type { Split, WorkoutLog, LoggedSet, ProgressStatus } from '../types';
+import {
+  getSplits,
+  upsertLog,
+  getPreviousLog,
+  getLogForDate,
+  getProgress,
+  getPrevSet,
+} from '../store';
+
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+type SetDraft = {
+  reps: string;
+  weight: string;
+  rir: string;
+};
+
+type ExerciseDraft = {
+  exerciseId: string;
+  sets: SetDraft[];
+};
+
+function blankSet(): SetDraft {
+  return { reps: '', weight: '', rir: '' };
+}
+
+function buildDraftsFromSplit(split: Split, existingLog?: WorkoutLog): ExerciseDraft[] {
+  return split.exercises.map((ex) => {
+    const setCount = ex.targetSets;
+    const sets: SetDraft[] = Array.from({ length: setCount }, (_, i) => {
+      const existing = existingLog?.sets.find(
+        (s) => s.exerciseId === ex.id && s.setIndex === i
+      );
+      return existing
+        ? { reps: String(existing.reps), weight: String(existing.weight), rir: String(existing.rir) }
+        : blankSet();
+    });
+    return { exerciseId: ex.id, sets };
+  });
+}
+
+export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
+  const [splits] = useState<Split[]>(() => getSplits());
+  const [selectedSplitId, setSelectedSplitId] = useState('');
+  const [logDate, setLogDate] = useState(today);
+  const [drafts, setDrafts] = useState<ExerciseDraft[]>([]);
+  const [prevLog, setPrevLog] = useState<WorkoutLog | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  const selectedSplit = splits.find((s) => s.id === selectedSplitId);
+
+  // Reinitialize drafts and prev log when split or date changes
+  useEffect(() => {
+    if (!selectedSplit) {
+      setDrafts([]);
+      setPrevLog(null);
+      return;
+    }
+    const existing = getLogForDate(selectedSplit.id, logDate);
+    const prev = getPreviousLog(selectedSplit.id, logDate);
+    setDrafts(buildDraftsFromSplit(selectedSplit, existing));
+    setPrevLog(prev);
+    setSaved(false);
+  }, [selectedSplitId, logDate, selectedSplit]);
+
+  const updateSet = useCallback(
+    (exIdx: number, setIdx: number, field: keyof SetDraft, value: string) => {
+      setDrafts((prev) => {
+        const next = prev.map((ex, ei) =>
+          ei !== exIdx
+            ? ex
+            : {
+                ...ex,
+                sets: ex.sets.map((s, si) =>
+                  si !== setIdx ? s : { ...s, [field]: value }
+                ),
+              }
+        );
+        return next;
+      });
+      setSaved(false);
+    },
+    []
+  );
+
+  function addSet(exIdx: number) {
+    setDrafts((prev) =>
+      prev.map((ex, i) =>
+        i === exIdx ? { ...ex, sets: [...ex.sets, blankSet()] } : ex
+      )
+    );
+  }
+
+  function removeSet(exIdx: number) {
+    setDrafts((prev) =>
+      prev.map((ex, i) =>
+        i === exIdx && ex.sets.length > 1
+          ? { ...ex, sets: ex.sets.slice(0, -1) }
+          : ex
+      )
+    );
+  }
+
+  function handleSave() {
+    if (!selectedSplit) return;
+
+    const sets: LoggedSet[] = [];
+    drafts.forEach((ex) => {
+      ex.sets.forEach((s, si) => {
+        const reps = parseFloat(s.reps);
+        const weight = parseFloat(s.weight);
+        const rir = parseFloat(s.rir);
+        if (!isNaN(reps) && !isNaN(weight)) {
+          sets.push({
+            exerciseId: ex.exerciseId,
+            setIndex: si,
+            reps,
+            weight,
+            rir: isNaN(rir) ? 0 : rir,
+          });
+        }
+      });
+    });
+
+    const existing = getLogForDate(selectedSplit.id, logDate);
+    const log: WorkoutLog = {
+      id: existing?.id ?? crypto.randomUUID(),
+      splitId: selectedSplit.id,
+      date: logDate,
+      sets,
+    };
+
+    upsertLog(log);
+    setSaved(true);
+    onLogSaved?.();
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto p-4 space-y-4">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Log Workout</h1>
+
+      {/* Controls */}
+      <div className="flex gap-3 flex-wrap">
+        <div className="flex-1 min-w-40">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Split</label>
+          <select
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={selectedSplitId}
+            onChange={(e) => setSelectedSplitId(e.target.value)}
+          >
+            <option value="">Select a split…</option>
+            {splits.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Date</label>
+          <input
+            type="date"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={logDate}
+            onChange={(e) => setLogDate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      {/* Previous log reference */}
+      {selectedSplit && prevLog && (
+        <div className="text-xs text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
+          Comparing against previous session: <span className="font-medium text-gray-600 dark:text-gray-300">{formatDate(prevLog.date)}</span>
+        </div>
+      )}
+
+      {/* No split selected */}
+      {!selectedSplit && splits.length > 0 && (
+        <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-sm">Select a split to start logging.</p>
+      )}
+
+      {/* No splits at all */}
+      {splits.length === 0 && (
+        <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-sm">
+          No splits found. Go to the <strong>Program</strong> tab to create one.
+        </p>
+      )}
+
+      {/* Exercise sections */}
+      {selectedSplit && drafts.map((exDraft, exIdx) => {
+        const exercise = selectedSplit.exercises.find((e) => e.id === exDraft.exerciseId);
+        if (!exercise) return null;
+
+        return (
+          <div key={exDraft.exerciseId} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
+            {/* Exercise header */}
+            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700">
+              <p className="font-semibold text-gray-900 dark:text-gray-100">{exercise.name}</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                Target: {exercise.targetSets} sets · {exercise.targetReps} reps · RIR {exercise.targetRIR}
+              </p>
+            </div>
+
+            {/* Sets table */}
+            <div className="px-4 py-3 space-y-2">
+              {/* Column headers */}
+              <div className="grid grid-cols-[2rem_1fr_1fr_1fr_2rem] gap-2 px-1">
+                <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">#</span>
+                <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">Weight</span>
+                <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">Reps</span>
+                <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">RIR</span>
+                <span></span>
+              </div>
+
+              {exDraft.sets.map((set, setIdx) => {
+                const prevSet = getPrevSet(prevLog, exercise.id, setIdx);
+                const currReps = parseFloat(set.reps);
+                const currWeight = parseFloat(set.weight);
+                const hasValues = !isNaN(currReps) && !isNaN(currWeight);
+                const status: ProgressStatus | null = hasValues
+                  ? getProgress({ reps: currReps, weight: currWeight }, prevSet)
+                  : null;
+
+                return (
+                  <div key={setIdx} className="grid grid-cols-[2rem_1fr_1fr_1fr_2rem] gap-2 items-center">
+                    {/* Set number */}
+                    <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">{setIdx + 1}</span>
+
+                    {/* Weight */}
+                    <div className="relative">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={2.5}
+                        className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={prevSet ? String(prevSet.weight) : '—'}
+                        value={set.weight}
+                        onChange={(e) => updateSet(exIdx, setIdx, 'weight', e.target.value)}
+                      />
+                      {prevSet && (
+                        <span className="absolute -top-4 left-0 right-0 text-center text-[10px] text-gray-400 dark:text-gray-500">
+                          prev: {prevSet.weight}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Reps */}
+                    <div className="relative">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={0}
+                        className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder={prevSet ? String(prevSet.reps) : '—'}
+                        value={set.reps}
+                        onChange={(e) => updateSet(exIdx, setIdx, 'reps', e.target.value)}
+                      />
+                      {prevSet && (
+                        <span className="absolute -top-4 left-0 right-0 text-center text-[10px] text-gray-400 dark:text-gray-500">
+                          prev: {prevSet.reps}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* RIR */}
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={10}
+                      className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder={prevSet ? String(prevSet.rir) : '—'}
+                      value={set.rir}
+                      onChange={(e) => updateSet(exIdx, setIdx, 'rir', e.target.value)}
+                    />
+
+                    {/* Progress indicator */}
+                    <div className="flex items-center justify-center text-base">
+                      <ProgressIcon status={status} />
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Add / remove set buttons */}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => addSet(exIdx)}
+                  className="flex-1 py-1.5 text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 border border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 rounded-lg transition-colors"
+                >
+                  + Add Set
+                </button>
+                {exDraft.sets.length > 1 && (
+                  <button
+                    onClick={() => removeSet(exIdx)}
+                    className="px-3 py-1.5 text-xs text-gray-400 hover:text-red-500 border border-dashed border-gray-200 dark:border-gray-600 hover:border-red-400 rounded-lg transition-colors"
+                  >
+                    − Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Save button */}
+      {selectedSplit && (
+        <div className="pt-2 pb-8">
+          <button
+            onClick={handleSave}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm"
+          >
+            {saved ? '✓ Saved' : 'Save Workout'}
+          </button>
+          {saved && (
+            <p className="text-center text-sm text-green-600 dark:text-green-400 mt-2">
+              Workout logged for {formatDate(logDate)}.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Progress icon ─────────────────────────────────────────────────────────────
+
+function ProgressIcon({ status }: { status: ProgressStatus | null }) {
+  if (!status || status === 'new') return <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>;
+  if (status === 'improved') return <span className="text-green-500 text-lg leading-none" title="Progress">✓</span>;
+  if (status === 'same') return <span className="text-orange-400 text-base leading-none" title="No change">●</span>;
+  if (status === 'declined') return <span className="text-red-500 text-base leading-none font-bold" title="Declined">✗</span>;
+  return null;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  });
+}

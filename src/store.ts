@@ -1,27 +1,29 @@
-import type { Split, WorkoutLog, LoggedSet, ProgressStatus } from './types';
+import type { Program, WorkoutLog, LoggedSet, ProgressStatus } from './types';
 
-const SPLITS_KEY = 'wt_splits';
+const PROGRAMS_KEY = 'wt_programs';
 const LOGS_KEY = 'wt_logs';
 
-// ── Splits ────────────────────────────────────────────────────────────────────
+// ── Programs ──────────────────────────────────────────────────────────────────
 
-export function getSplits(): Split[] {
+export function getPrograms(): Program[] {
   try {
-    return JSON.parse(localStorage.getItem(SPLITS_KEY) ?? '[]');
+    return JSON.parse(localStorage.getItem(PROGRAMS_KEY) ?? '[]');
   } catch {
     return [];
   }
 }
 
-export function saveSplits(splits: Split[]): void {
-  localStorage.setItem(SPLITS_KEY, JSON.stringify(splits));
+export function savePrograms(programs: Program[]): void {
+  localStorage.setItem(PROGRAMS_KEY, JSON.stringify(programs));
 }
 
 // ── Logs ──────────────────────────────────────────────────────────────────────
 
 export function getLogs(): WorkoutLog[] {
   try {
-    return JSON.parse(localStorage.getItem(LOGS_KEY) ?? '[]');
+    const raw: WorkoutLog[] = JSON.parse(localStorage.getItem(LOGS_KEY) ?? '[]');
+    // Drop any logs from the old schema that lack programId
+    return raw.filter((l) => !!l.programId);
   } catch {
     return [];
   }
@@ -47,21 +49,31 @@ export function deleteLog(id: string): void {
 }
 
 /**
- * Returns the most recent log for the given split that occurred strictly
- * before `beforeDate` (YYYY-MM-DD). Used for week-over-week comparison.
+ * Returns the most recent log for the given program+split that occurred
+ * strictly before `beforeDate`. Used for week-over-week comparison.
  */
-export function getPreviousLog(splitId: string, beforeDate: string): WorkoutLog | null {
+export function getPreviousLog(
+  programId: string,
+  splitId: string,
+  beforeDate: string
+): WorkoutLog | null {
   const logs = getLogs()
-    .filter((l) => l.splitId === splitId && l.date < beforeDate)
+    .filter((l) => l.programId === programId && l.splitId === splitId && l.date < beforeDate)
     .sort((a, b) => b.date.localeCompare(a.date));
   return logs[0] ?? null;
 }
 
 /**
- * Returns the log for this split on this exact date, if it exists.
+ * Returns the log for this program+split on this exact date, if it exists.
  */
-export function getLogForDate(splitId: string, date: string): WorkoutLog | undefined {
-  return getLogs().find((l) => l.splitId === splitId && l.date === date);
+export function getLogForDate(
+  programId: string,
+  splitId: string,
+  date: string
+): WorkoutLog | undefined {
+  return getLogs().find(
+    (l) => l.programId === programId && l.splitId === splitId && l.date === date
+  );
 }
 
 // ── Progress ─────────────────────────────────────────────────────────────────

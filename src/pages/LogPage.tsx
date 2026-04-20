@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Split, WorkoutLog, LoggedSet, ProgressStatus } from '../types';
+import type { Program, Split, WorkoutLog, LoggedSet, ProgressStatus } from '../types';
 import {
-  getSplits,
+  getPrograms,
   upsertLog,
   getPreviousLog,
   getLogForDate,
@@ -30,8 +30,7 @@ function blankSet(): SetDraft {
 
 function buildDraftsFromSplit(split: Split, existingLog?: WorkoutLog): ExerciseDraft[] {
   return split.exercises.map((ex) => {
-    const setCount = ex.targetSets;
-    const sets: SetDraft[] = Array.from({ length: setCount }, (_, i) => {
+    const sets: SetDraft[] = Array.from({ length: ex.targetSets }, (_, i) => {
       const existing = existingLog?.sets.find(
         (s) => s.exerciseId === ex.id && s.setIndex === i
       );
@@ -44,33 +43,41 @@ function buildDraftsFromSplit(split: Split, existingLog?: WorkoutLog): ExerciseD
 }
 
 export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
-  const [splits] = useState<Split[]>(() => getSplits());
+  const [programs] = useState<Program[]>(() => getPrograms());
+  const [selectedProgramId, setSelectedProgramId] = useState('');
   const [selectedSplitId, setSelectedSplitId] = useState('');
   const [logDate, setLogDate] = useState(today);
   const [drafts, setDrafts] = useState<ExerciseDraft[]>([]);
   const [prevLog, setPrevLog] = useState<WorkoutLog | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const selectedSplit = splits.find((s) => s.id === selectedSplitId);
+  const selectedProgram = programs.find((p) => p.id === selectedProgramId);
+  const availableSplits = selectedProgram?.splits ?? [];
+  const selectedSplit = availableSplits.find((s) => s.id === selectedSplitId);
+
+  // Reset split when program changes
+  useEffect(() => {
+    setSelectedSplitId('');
+  }, [selectedProgramId]);
 
   // Reinitialize drafts and prev log when split or date changes
   useEffect(() => {
-    if (!selectedSplit) {
+    if (!selectedSplit || !selectedProgramId) {
       setDrafts([]);
       setPrevLog(null);
       return;
     }
-    const existing = getLogForDate(selectedSplit.id, logDate);
-    const prev = getPreviousLog(selectedSplit.id, logDate);
+    const existing = getLogForDate(selectedProgramId, selectedSplit.id, logDate);
+    const prev = getPreviousLog(selectedProgramId, selectedSplit.id, logDate);
     setDrafts(buildDraftsFromSplit(selectedSplit, existing));
     setPrevLog(prev);
     setSaved(false);
-  }, [selectedSplitId, logDate, selectedSplit]);
+  }, [selectedProgramId, selectedSplitId, logDate, selectedSplit]);
 
   const updateSet = useCallback(
     (exIdx: number, setIdx: number, field: keyof SetDraft, value: string) => {
-      setDrafts((prev) => {
-        const next = prev.map((ex, ei) =>
+      setDrafts((prev) =>
+        prev.map((ex, ei) =>
           ei !== exIdx
             ? ex
             : {
@@ -79,9 +86,8 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
                   si !== setIdx ? s : { ...s, [field]: value }
                 ),
               }
-        );
-        return next;
-      });
+        )
+      );
       setSaved(false);
     },
     []
@@ -106,7 +112,7 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
   }
 
   function handleSave() {
-    if (!selectedSplit) return;
+    if (!selectedSplit || !selectedProgramId) return;
 
     const sets: LoggedSet[] = [];
     drafts.forEach((ex) => {
@@ -126,9 +132,10 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
       });
     });
 
-    const existing = getLogForDate(selectedSplit.id, logDate);
+    const existing = getLogForDate(selectedProgramId, selectedSplit.id, logDate);
     const log: WorkoutLog = {
       id: existing?.id ?? crypto.randomUUID(),
+      programId: selectedProgramId,
       splitId: selectedSplit.id,
       date: logDate,
       sets,
@@ -145,15 +152,30 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
 
       {/* Controls */}
       <div className="flex gap-3 flex-wrap">
-        <div className="flex-1 min-w-40">
-          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Split</label>
+        <div className="flex-1 min-w-36">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Program</label>
           <select
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={selectedProgramId}
+            onChange={(e) => setSelectedProgramId(e.target.value)}
+          >
+            <option value="">Select program…</option>
+            {programs.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex-1 min-w-36">
+          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Split</label>
+          <select
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
             value={selectedSplitId}
             onChange={(e) => setSelectedSplitId(e.target.value)}
+            disabled={!selectedProgram}
           >
-            <option value="">Select a split…</option>
-            {splits.map((s) => (
+            <option value="">Select split…</option>
+            {availableSplits.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
@@ -177,15 +199,15 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
         </div>
       )}
 
-      {/* No split selected */}
-      {!selectedSplit && splits.length > 0 && (
-        <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-sm">Select a split to start logging.</p>
-      )}
-
-      {/* No splits at all */}
-      {splits.length === 0 && (
+      {/* Empty states */}
+      {programs.length === 0 && (
         <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-sm">
-          No splits found. Go to the <strong>Program</strong> tab to create one.
+          No programs found. Go to the <strong>Program</strong> tab to create one.
+        </p>
+      )}
+      {programs.length > 0 && !selectedSplit && (
+        <p className="text-center text-gray-400 dark:text-gray-500 py-12 text-sm">
+          Select a program and split to start logging.
         </p>
       )}
 
@@ -196,7 +218,6 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
 
         return (
           <div key={exDraft.exerciseId} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
-            {/* Exercise header */}
             <div className="px-4 py-3 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-700">
               <p className="font-semibold text-gray-900 dark:text-gray-100">{exercise.name}</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
@@ -204,9 +225,7 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
               </p>
             </div>
 
-            {/* Sets table */}
             <div className="px-4 py-3 space-y-2">
-              {/* Column headers */}
               <div className="grid grid-cols-[2rem_1fr_1fr_1fr_2rem] gap-2 px-1">
                 <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">#</span>
                 <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">Weight</span>
@@ -226,16 +245,11 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
 
                 return (
                   <div key={setIdx} className="grid grid-cols-[2rem_1fr_1fr_1fr_2rem] gap-2 items-center">
-                    {/* Set number */}
                     <span className="text-xs font-medium text-gray-400 dark:text-gray-500 text-center">{setIdx + 1}</span>
 
-                    {/* Weight */}
                     <div className="relative">
                       <input
-                        type="number"
-                        inputMode="decimal"
-                        min={0}
-                        step={2.5}
+                        type="number" inputMode="decimal" min={0} step={2.5}
                         className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder={prevSet ? String(prevSet.weight) : '—'}
                         value={set.weight}
@@ -248,12 +262,9 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
                       )}
                     </div>
 
-                    {/* Reps */}
                     <div className="relative">
                       <input
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
+                        type="number" inputMode="numeric" min={0}
                         className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder={prevSet ? String(prevSet.reps) : '—'}
                         value={set.reps}
@@ -266,19 +277,14 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
                       )}
                     </div>
 
-                    {/* RIR */}
                     <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={10}
+                      type="number" inputMode="numeric" min={0} max={10}
                       className="w-full px-2 py-1.5 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder={prevSet ? String(prevSet.rir) : '—'}
                       value={set.rir}
                       onChange={(e) => updateSet(exIdx, setIdx, 'rir', e.target.value)}
                     />
 
-                    {/* Progress indicator */}
                     <div className="flex items-center justify-center text-base">
                       <ProgressIcon status={status} />
                     </div>
@@ -286,7 +292,6 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
                 );
               })}
 
-              {/* Add / remove set buttons */}
               <div className="flex gap-2 pt-1">
                 <button
                   onClick={() => addSet(exIdx)}
@@ -308,7 +313,6 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
         );
       })}
 
-      {/* Save button */}
       {selectedSplit && (
         <div className="pt-2 pb-8">
           <button
@@ -328,8 +332,6 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
   );
 }
 
-// ── Progress icon ─────────────────────────────────────────────────────────────
-
 function ProgressIcon({ status }: { status: ProgressStatus | null }) {
   if (!status || status === 'new') return <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>;
   if (status === 'improved') return <span className="text-green-500 text-lg leading-none" title="Progress">✓</span>;
@@ -337,8 +339,6 @@ function ProgressIcon({ status }: { status: ProgressStatus | null }) {
   if (status === 'declined') return <span className="text-red-500 text-base leading-none font-bold" title="Declined">✗</span>;
   return null;
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function formatDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number);

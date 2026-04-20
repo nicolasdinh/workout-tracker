@@ -12,6 +12,12 @@ export interface Split {
   exercises: Exercise[];
 }
 
+export interface Program {
+  id: string;
+  name: string;
+  splits: Split[];
+}
+
 export interface LoggedSet {
   exerciseId: string;
   setIndex: number;
@@ -22,6 +28,7 @@ export interface LoggedSet {
 
 export interface WorkoutLog {
   id: string;
+  programId: string;
   splitId: string;
   date: string; // "YYYY-MM-DD"
   sets: LoggedSet[];

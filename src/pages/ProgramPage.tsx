@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { Split, Exercise } from '../types';
-import { getSplits, saveSplits } from '../store';
+import type { Program, Split, Exercise } from '../types';
+import { getPrograms, savePrograms } from '../store';
 
 function newId() {
   return crypto.randomUUID();
@@ -14,59 +14,112 @@ const DEFAULT_EXERCISE: Omit<Exercise, 'id'> = {
 };
 
 export default function ProgramPage() {
-  const [splits, setSplits] = useState<Split[]>(() => getSplits());
+  const [programs, setPrograms] = useState<Program[]>(() => getPrograms());
+  const [expandedProgramId, setExpandedProgramId] = useState<string | null>(null);
   const [expandedSplitId, setExpandedSplitId] = useState<string | null>(null);
   const [editingExercise, setEditingExercise] = useState<{
+    programId: string;
     splitId: string;
     exercise: Exercise;
   } | null>(null);
-  const [newSplitName, setNewSplitName] = useState('');
-  const [addingSplitName, setAddingSplitName] = useState(false);
+  const [addingProgramName, setAddingProgramName] = useState(false);
+  const [newProgramName, setNewProgramName] = useState('');
 
-  function persist(updated: Split[]) {
-    setSplits(updated);
-    saveSplits(updated);
+  function persist(updated: Program[]) {
+    setPrograms(updated);
+    savePrograms(updated);
   }
 
-  function addSplit() {
-    if (!newSplitName.trim()) return;
-    persist([...splits, { id: newId(), name: newSplitName.trim(), exercises: [] }]);
-    setNewSplitName('');
-    setAddingSplitName(false);
+  // ── Program CRUD ────────────────────────────────────────────────────────────
+
+  function addProgram() {
+    if (!newProgramName.trim()) return;
+    persist([...programs, { id: newId(), name: newProgramName.trim(), splits: [] }]);
+    setNewProgramName('');
+    setAddingProgramName(false);
   }
 
-  function deleteSplit(id: string) {
-    if (!confirm('Delete this split and all its exercises?')) return;
-    persist(splits.filter((s) => s.id !== id));
-    if (expandedSplitId === id) setExpandedSplitId(null);
+  function deleteProgram(id: string) {
+    if (!confirm('Delete this program and all its splits and exercises?')) return;
+    persist(programs.filter((p) => p.id !== id));
+    if (expandedProgramId === id) setExpandedProgramId(null);
   }
 
-  function renameSplit(id: string, name: string) {
-    persist(splits.map((s) => (s.id === id ? { ...s, name } : s)));
+  function renameProgram(id: string, name: string) {
+    persist(programs.map((p) => (p.id === id ? { ...p, name } : p)));
   }
 
-  function saveExercise(splitId: string, ex: Exercise) {
+  // ── Split CRUD ──────────────────────────────────────────────────────────────
+
+  function addSplit(programId: string, name: string) {
     persist(
-      splits.map((s) => {
-        if (s.id !== splitId) return s;
-        const exists = s.exercises.some((e) => e.id === ex.id);
+      programs.map((p) =>
+        p.id === programId
+          ? { ...p, splits: [...p.splits, { id: newId(), name, exercises: [] }] }
+          : p
+      )
+    );
+  }
+
+  function deleteSplit(programId: string, splitId: string) {
+    if (!confirm('Delete this split and all its exercises?')) return;
+    persist(
+      programs.map((p) =>
+        p.id === programId
+          ? { ...p, splits: p.splits.filter((s) => s.id !== splitId) }
+          : p
+      )
+    );
+    if (expandedSplitId === splitId) setExpandedSplitId(null);
+  }
+
+  function renameSplit(programId: string, splitId: string, name: string) {
+    persist(
+      programs.map((p) =>
+        p.id === programId
+          ? { ...p, splits: p.splits.map((s) => (s.id === splitId ? { ...s, name } : s)) }
+          : p
+      )
+    );
+  }
+
+  // ── Exercise CRUD ───────────────────────────────────────────────────────────
+
+  function saveExercise(programId: string, splitId: string, ex: Exercise) {
+    persist(
+      programs.map((p) => {
+        if (p.id !== programId) return p;
         return {
-          ...s,
-          exercises: exists
-            ? s.exercises.map((e) => (e.id === ex.id ? ex : e))
-            : [...s.exercises, ex],
+          ...p,
+          splits: p.splits.map((s) => {
+            if (s.id !== splitId) return s;
+            const exists = s.exercises.some((e) => e.id === ex.id);
+            return {
+              ...s,
+              exercises: exists
+                ? s.exercises.map((e) => (e.id === ex.id ? ex : e))
+                : [...s.exercises, ex],
+            };
+          }),
         };
       })
     );
     setEditingExercise(null);
   }
 
-  function deleteExercise(splitId: string, exerciseId: string) {
+  function deleteExercise(programId: string, splitId: string, exerciseId: string) {
     persist(
-      splits.map((s) =>
-        s.id === splitId
-          ? { ...s, exercises: s.exercises.filter((e) => e.id !== exerciseId) }
-          : s
+      programs.map((p) =>
+        p.id !== programId
+          ? p
+          : {
+              ...p,
+              splits: p.splits.map((s) =>
+                s.id !== splitId
+                  ? s
+                  : { ...s, exercises: s.exercises.filter((e) => e.id !== exerciseId) }
+              ),
+            }
       )
     );
   }
@@ -74,53 +127,58 @@ export default function ProgramPage() {
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Program</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Programs</h1>
         <button
-          onClick={() => setAddingSplitName(true)}
+          onClick={() => setAddingProgramName(true)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
-          + New Split
+          + New Program
         </button>
       </div>
 
-      {addingSplitName && (
+      {addingProgramName && (
         <div className="flex gap-2">
           <input
             autoFocus
             className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            placeholder="Split name (e.g. Push Day)"
-            value={newSplitName}
-            onChange={(e) => setNewSplitName(e.target.value)}
+            placeholder="Program name (e.g. PPL, 5/3/1)"
+            value={newProgramName}
+            onChange={(e) => setNewProgramName(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') addSplit();
-              if (e.key === 'Escape') { setAddingSplitName(false); setNewSplitName(''); }
+              if (e.key === 'Enter') addProgram();
+              if (e.key === 'Escape') { setAddingProgramName(false); setNewProgramName(''); }
             }}
           />
-          <button onClick={addSplit} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">Save</button>
-          <button onClick={() => { setAddingSplitName(false); setNewSplitName(''); }} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
+          <button onClick={addProgram} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">Save</button>
+          <button onClick={() => { setAddingProgramName(false); setNewProgramName(''); }} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
         </div>
       )}
 
-      {splits.length === 0 && !addingSplitName && (
+      {programs.length === 0 && !addingProgramName && (
         <p className="text-center text-gray-500 dark:text-gray-400 py-12 text-sm">
-          No splits yet. Create your first split to get started.
+          No programs yet. Create your first program to get started.
         </p>
       )}
 
       <div className="space-y-3">
-        {splits.map((split) => (
-          <SplitCard
-            key={split.id}
-            split={split}
-            isExpanded={expandedSplitId === split.id}
-            onToggle={() => setExpandedSplitId(expandedSplitId === split.id ? null : split.id)}
-            onRename={(name) => renameSplit(split.id, name)}
-            onDelete={() => deleteSplit(split.id)}
-            onAddExercise={() =>
-              setEditingExercise({ splitId: split.id, exercise: { ...DEFAULT_EXERCISE, id: newId() } })
+        {programs.map((program) => (
+          <ProgramCard
+            key={program.id}
+            program={program}
+            isExpanded={expandedProgramId === program.id}
+            expandedSplitId={expandedSplitId}
+            onToggle={() => setExpandedProgramId(expandedProgramId === program.id ? null : program.id)}
+            onRename={(name) => renameProgram(program.id, name)}
+            onDelete={() => deleteProgram(program.id)}
+            onAddSplit={(name) => addSplit(program.id, name)}
+            onDeleteSplit={(splitId) => deleteSplit(program.id, splitId)}
+            onRenameSplit={(splitId, name) => renameSplit(program.id, splitId, name)}
+            onToggleSplit={(splitId) => setExpandedSplitId(expandedSplitId === splitId ? null : splitId)}
+            onAddExercise={(splitId) =>
+              setEditingExercise({ programId: program.id, splitId, exercise: { ...DEFAULT_EXERCISE, id: newId() } })
             }
-            onEditExercise={(ex) => setEditingExercise({ splitId: split.id, exercise: ex })}
-            onDeleteExercise={(exId) => deleteExercise(split.id, exId)}
+            onEditExercise={(splitId, ex) => setEditingExercise({ programId: program.id, splitId, exercise: ex })}
+            onDeleteExercise={(splitId, exId) => deleteExercise(program.id, splitId, exId)}
           />
         ))}
       </div>
@@ -128,9 +186,150 @@ export default function ProgramPage() {
       {editingExercise && (
         <ExerciseModal
           exercise={editingExercise.exercise}
-          onSave={(ex) => saveExercise(editingExercise.splitId, ex)}
+          onSave={(ex) => saveExercise(editingExercise.programId, editingExercise.splitId, ex)}
           onClose={() => setEditingExercise(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ── ProgramCard ───────────────────────────────────────────────────────────────
+
+interface ProgramCardProps {
+  program: Program;
+  isExpanded: boolean;
+  expandedSplitId: string | null;
+  onToggle: () => void;
+  onRename: (name: string) => void;
+  onDelete: () => void;
+  onAddSplit: (name: string) => void;
+  onDeleteSplit: (id: string) => void;
+  onRenameSplit: (id: string, name: string) => void;
+  onToggleSplit: (id: string) => void;
+  onAddExercise: (splitId: string) => void;
+  onEditExercise: (splitId: string, ex: Exercise) => void;
+  onDeleteExercise: (splitId: string, exId: string) => void;
+}
+
+function ProgramCard({
+  program, isExpanded, expandedSplitId, onToggle, onRename, onDelete,
+  onAddSplit, onDeleteSplit, onRenameSplit, onToggleSplit,
+  onAddExercise, onEditExercise, onDeleteExercise,
+}: ProgramCardProps) {
+  const [renaming, setRenaming] = useState(false);
+  const [nameInput, setNameInput] = useState(program.name);
+  const [addingSplit, setAddingSplit] = useState(false);
+  const [newSplitName, setNewSplitName] = useState('');
+
+  function commitRename() {
+    if (nameInput.trim()) onRename(nameInput.trim());
+    setRenaming(false);
+  }
+
+  function commitAddSplit() {
+    if (!newSplitName.trim()) return;
+    onAddSplit(newSplitName.trim());
+    setNewSplitName('');
+    setAddingSplit(false);
+  }
+
+  const splitCount = program.splits.length;
+  const exerciseCount = program.splits.reduce((n, s) => n + s.exercises.length, 0);
+
+  return (
+    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+      {/* Program header */}
+      <div
+        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-750"
+        onClick={onToggle}
+      >
+        {renaming ? (
+          <input
+            autoFocus
+            className="flex-1 mr-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') { setRenaming(false); setNameInput(program.name); }
+            }}
+            onBlur={commitRename}
+          />
+        ) : (
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">{program.name}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+              {splitCount} split{splitCount !== 1 ? 's' : ''} · {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''}
+            </span>
+          </div>
+        )}
+        <div className="flex items-center gap-1 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => { setRenaming(true); setNameInput(program.name); }}
+            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded transition-colors"
+            title="Rename"
+          >
+            <PencilIcon />
+          </button>
+          <button
+            onClick={onDelete}
+            className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
+            title="Delete"
+          >
+            <TrashIcon />
+          </button>
+          <span className="ml-1 text-gray-400 dark:text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+
+      {/* Splits */}
+      {isExpanded && (
+        <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-2">
+          {program.splits.length === 0 && !addingSplit && (
+            <p className="text-sm text-gray-400 dark:text-gray-500 py-1">No splits yet.</p>
+          )}
+
+          {program.splits.map((split) => (
+            <SplitCard
+              key={split.id}
+              split={split}
+              isExpanded={expandedSplitId === split.id}
+              onToggle={() => onToggleSplit(split.id)}
+              onRename={(name) => onRenameSplit(split.id, name)}
+              onDelete={() => onDeleteSplit(split.id)}
+              onAddExercise={() => onAddExercise(split.id)}
+              onEditExercise={(ex) => onEditExercise(split.id, ex)}
+              onDeleteExercise={(exId) => onDeleteExercise(split.id, exId)}
+            />
+          ))}
+
+          {addingSplit ? (
+            <div className="flex gap-2 pt-1">
+              <input
+                autoFocus
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Split name (e.g. Push Day)"
+                value={newSplitName}
+                onChange={(e) => setNewSplitName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitAddSplit();
+                  if (e.key === 'Escape') { setAddingSplit(false); setNewSplitName(''); }
+                }}
+              />
+              <button onClick={commitAddSplit} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">Add</button>
+              <button onClick={() => { setAddingSplit(false); setNewSplitName(''); }} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAddingSplit(true)}
+              className="w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-sm rounded-lg transition-colors"
+            >
+              + Add Split
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -161,9 +360,9 @@ function SplitCard({
   }
 
   return (
-    <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
+    <div className="border border-gray-100 dark:border-gray-700 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-750">
       <div
-        className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-750"
+        className="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
         onClick={onToggle}
       >
         {renaming ? (
@@ -180,54 +379,42 @@ function SplitCard({
             onBlur={commitRename}
           />
         ) : (
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">{split.name}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{split.name}</span>
             <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
               {split.exercises.length} exercise{split.exercises.length !== 1 ? 's' : ''}
             </span>
           </div>
         )}
         <div className="flex items-center gap-1 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => { setRenaming(true); setNameInput(split.name); }}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded transition-colors"
-            title="Rename"
-          >
-            <PencilIcon />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
-            title="Delete"
-          >
-            <TrashIcon />
-          </button>
+          <button onClick={() => { setRenaming(true); setNameInput(split.name); }} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"><PencilIcon /></button>
+          <button onClick={onDelete} className="p-1 text-gray-400 hover:text-red-500 rounded"><TrashIcon /></button>
           <span className="ml-1 text-gray-400 dark:text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-2">
+        <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1">
           {split.exercises.length === 0 && (
-            <p className="text-sm text-gray-400 dark:text-gray-500 py-2">No exercises. Add one below.</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 py-1">No exercises.</p>
           )}
           {split.exercises.map((ex, i) => (
-            <div key={ex.id} className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
+            <div key={ex.id} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{i + 1}. {ex.name}</p>
+                <p className="text-sm text-gray-800 dark:text-gray-200">{i + 1}. {ex.name}</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                   {ex.targetSets} sets · {ex.targetReps} reps · RIR {ex.targetRIR}
                 </p>
               </div>
               <div className="flex gap-1 ml-2 shrink-0">
-                <button onClick={() => onEditExercise(ex)} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"><PencilIcon /></button>
-                <button onClick={() => onDeleteExercise(ex.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded"><TrashIcon /></button>
+                <button onClick={() => onEditExercise(ex)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"><PencilIcon /></button>
+                <button onClick={() => onDeleteExercise(ex.id)} className="p-1 text-gray-400 hover:text-red-500 rounded"><TrashIcon /></button>
               </div>
             </div>
           ))}
           <button
             onClick={onAddExercise}
-            className="mt-1 w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-sm rounded-lg transition-colors"
+            className="mt-1 w-full py-1.5 border border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-xs rounded-lg transition-colors"
           >
             + Add Exercise
           </button>
@@ -280,9 +467,7 @@ function ExerciseModal({ exercise, onSave, onClose }: ExerciseModalProps) {
           <label className="block space-y-1">
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sets</span>
             <input
-              type="number"
-              min={1}
-              max={20}
+              type="number" min={1} max={20}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.targetSets}
               onChange={(e) => set('targetSets', parseInt(e.target.value) || 1)}
@@ -300,9 +485,7 @@ function ExerciseModal({ exercise, onSave, onClose }: ExerciseModalProps) {
           <label className="block space-y-1">
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">RIR</span>
             <input
-              type="number"
-              min={0}
-              max={10}
+              type="number" min={0} max={10}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.targetRIR}
               onChange={(e) => set('targetRIR', parseInt(e.target.value) || 0)}

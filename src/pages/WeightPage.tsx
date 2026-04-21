@@ -28,6 +28,7 @@ export default function WeightPage() {
   const [note, setNote] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   const existingForDate = sorted.find((e) => e.date === date);
 
@@ -50,18 +51,23 @@ export default function WeightPage() {
   async function handleSave() {
     const val = parseFloat(weightInput);
     if (isNaN(val) || val <= 0) return;
-    const weightLbs = toLbs(val, unit);
-    await upsertWeightEntry({
-      id: editingId ?? existingForDate?.id ?? crypto.randomUUID(),
-      date,
-      weightLbs,
-      note: note.trim() || undefined,
-    });
-    setWeightInput('');
-    setNote('');
-    setEditingId(null);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setSaveError('');
+    try {
+      const weightLbs = toLbs(val, unit);
+      await upsertWeightEntry({
+        id: editingId ?? existingForDate?.id ?? crypto.randomUUID(),
+        date,
+        weightLbs,
+        note: note.trim() || undefined,
+      });
+      setWeightInput('');
+      setNote('');
+      setEditingId(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Failed to save');
+    }
   }
 
   async function handleDelete(id: string) {
@@ -175,6 +181,9 @@ export default function WeightPage() {
             </button>
           )}
         </div>
+        {saveError && (
+          <p className="text-sm text-red-500">{saveError}</p>
+        )}
       </div>
 
       {/* ── History list ───────────────────────────────────────────────────── */}

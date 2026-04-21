@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Program, Split, Exercise } from '../types';
-import { getPrograms, savePrograms } from '../store';
+import { useStore } from '../context/StoreContext';
 
 function newId() {
   return crypto.randomUUID();
@@ -14,7 +14,7 @@ const DEFAULT_EXERCISE: Omit<Exercise, 'id'> = {
 };
 
 export default function ProgramPage() {
-  const [programs, setPrograms] = useState<Program[]>(() => getPrograms());
+  const { programs, persistPrograms } = useStore();
   const [expandedProgramId, setExpandedProgramId] = useState<string | null>(null);
   const [expandedSplitId, setExpandedSplitId] = useState<string | null>(null);
   const [editingExercise, setEditingExercise] = useState<{
@@ -26,8 +26,7 @@ export default function ProgramPage() {
   const [newProgramName, setNewProgramName] = useState('');
 
   function persist(updated: Program[]) {
-    setPrograms(updated);
-    savePrograms(updated);
+    persistPrograms(updated);
   }
 
   // ── Program CRUD ────────────────────────────────────────────────────────────
@@ -239,7 +238,6 @@ function ProgramCard({
 
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm">
-      {/* Program header */}
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 dark:hover:bg-gray-750"
         onClick={onToggle}
@@ -266,31 +264,17 @@ function ProgramCard({
           </div>
         )}
         <div className="flex items-center gap-1 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-          <button
-            onClick={() => { setRenaming(true); setNameInput(program.name); }}
-            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded transition-colors"
-            title="Rename"
-          >
-            <PencilIcon />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors"
-            title="Delete"
-          >
-            <TrashIcon />
-          </button>
+          <button onClick={() => { setRenaming(true); setNameInput(program.name); }} className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded transition-colors" title="Rename"><PencilIcon /></button>
+          <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-500 rounded transition-colors" title="Delete"><TrashIcon /></button>
           <span className="ml-1 text-gray-400 dark:text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
         </div>
       </div>
 
-      {/* Splits */}
       {isExpanded && (
         <div className="border-t border-gray-100 dark:border-gray-700 px-4 py-3 space-y-2">
           {program.splits.length === 0 && !addingSplit && (
             <p className="text-sm text-gray-400 dark:text-gray-500 py-1">No splits yet.</p>
           )}
-
           {program.splits.map((split) => (
             <SplitCard
               key={split.id}
@@ -304,7 +288,6 @@ function ProgramCard({
               onDeleteExercise={(exId) => onDeleteExercise(split.id, exId)}
             />
           ))}
-
           {addingSplit ? (
             <div className="flex gap-2 pt-1">
               <input
@@ -319,13 +302,10 @@ function ProgramCard({
                 }}
               />
               <button onClick={commitAddSplit} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">Add</button>
-              <button onClick={() => { setAddingSplit(false); setNewSplitName(''); }} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
+              <button onClick={() => { setAddingSplit(false); setNewSplitName(''); }} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
             </div>
           ) : (
-            <button
-              onClick={() => setAddingSplit(true)}
-              className="w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-sm rounded-lg transition-colors"
-            >
+            <button onClick={() => setAddingSplit(true)} className="w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-sm rounded-lg transition-colors">
               + Add Split
             </button>
           )}
@@ -348,9 +328,7 @@ interface SplitCardProps {
   onDeleteExercise: (id: string) => void;
 }
 
-function SplitCard({
-  split, isExpanded, onToggle, onRename, onDelete, onAddExercise, onEditExercise, onDeleteExercise,
-}: SplitCardProps) {
+function SplitCard({ split, isExpanded, onToggle, onRename, onDelete, onAddExercise, onEditExercise, onDeleteExercise }: SplitCardProps) {
   const [renaming, setRenaming] = useState(false);
   const [nameInput, setNameInput] = useState(split.name);
 
@@ -361,10 +339,7 @@ function SplitCard({
 
   return (
     <div className="border border-gray-100 dark:border-gray-700 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-750">
-      <div
-        className="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700"
-        onClick={onToggle}
-      >
+      <div className="flex items-center justify-between px-3 py-2.5 cursor-pointer select-none hover:bg-gray-100 dark:hover:bg-gray-700" onClick={onToggle}>
         {renaming ? (
           <input
             autoFocus
@@ -381,9 +356,7 @@ function SplitCard({
         ) : (
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{split.name}</span>
-            <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-              {split.exercises.length} exercise{split.exercises.length !== 1 ? 's' : ''}
-            </span>
+            <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">{split.exercises.length} exercise{split.exercises.length !== 1 ? 's' : ''}</span>
           </div>
         )}
         <div className="flex items-center gap-1 ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -392,19 +365,14 @@ function SplitCard({
           <span className="ml-1 text-gray-400 dark:text-gray-500 text-xs">{isExpanded ? '▲' : '▼'}</span>
         </div>
       </div>
-
       {isExpanded && (
         <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2 space-y-1">
-          {split.exercises.length === 0 && (
-            <p className="text-xs text-gray-400 dark:text-gray-500 py-1">No exercises.</p>
-          )}
+          {split.exercises.length === 0 && <p className="text-xs text-gray-400 dark:text-gray-500 py-1">No exercises.</p>}
           {split.exercises.map((ex, i) => (
             <div key={ex.id} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
               <div className="min-w-0">
                 <p className="text-sm text-gray-800 dark:text-gray-200">{i + 1}. {ex.name}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                  {ex.targetSets} sets · {ex.targetReps} reps · RIR {ex.targetRIR}
-                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{ex.targetSets} sets · {ex.targetReps} reps · RIR {ex.targetRIR}</p>
               </div>
               <div className="flex gap-1 ml-2 shrink-0">
                 <button onClick={() => onEditExercise(ex)} className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"><PencilIcon /></button>
@@ -412,10 +380,7 @@ function SplitCard({
               </div>
             </div>
           ))}
-          <button
-            onClick={onAddExercise}
-            className="mt-1 w-full py-1.5 border border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-xs rounded-lg transition-colors"
-          >
+          <button onClick={onAddExercise} className="mt-1 w-full py-1.5 border border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 text-gray-400 hover:text-blue-500 text-xs rounded-lg transition-colors">
             + Add Exercise
           </button>
         </div>
@@ -426,31 +391,17 @@ function SplitCard({
 
 // ── ExerciseModal ─────────────────────────────────────────────────────────────
 
-interface ExerciseModalProps {
-  exercise: Exercise;
-  onSave: (ex: Exercise) => void;
-  onClose: () => void;
-}
-
-function ExerciseModal({ exercise, onSave, onClose }: ExerciseModalProps) {
+function ExerciseModal({ exercise, onSave, onClose }: { exercise: Exercise; onSave: (ex: Exercise) => void; onClose: () => void }) {
   const [form, setForm] = useState({ ...exercise });
 
   function set<K extends keyof Exercise>(key: K, value: Exercise[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  function handleSave() {
-    if (!form.name.trim()) return;
-    onSave({ ...form, name: form.name.trim() });
-  }
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          {exercise.name ? 'Edit Exercise' : 'New Exercise'}
-        </h2>
-
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{exercise.name ? 'Edit Exercise' : 'New Exercise'}</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Exercise Name</span>
           <input
@@ -459,78 +410,44 @@ function ExerciseModal({ exercise, onSave, onClose }: ExerciseModalProps) {
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             placeholder="e.g. Bench Press"
-            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+            onKeyDown={(e) => e.key === 'Enter' && form.name.trim() && onSave({ ...form, name: form.name.trim() })}
           />
         </label>
-
         <div className="grid grid-cols-3 gap-3">
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Sets</span>
-            <input
-              type="number" min={1} max={20}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.targetSets}
-              onChange={(e) => set('targetSets', parseInt(e.target.value) || 1)}
-            />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Reps</span>
-            <input
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.targetReps}
-              onChange={(e) => set('targetReps', e.target.value)}
-              placeholder="8-12"
-            />
-          </label>
-          <label className="block space-y-1">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">RIR</span>
-            <input
-              type="number" min={0} max={10}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.targetRIR}
-              onChange={(e) => set('targetRIR', parseInt(e.target.value) || 0)}
-            />
-          </label>
+          {(['targetSets', 'targetReps', 'targetRIR'] as const).map((field) => (
+            <label key={field} className="block space-y-1">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                {field === 'targetSets' ? 'Sets' : field === 'targetReps' ? 'Reps' : 'RIR'}
+              </span>
+              <input
+                type={field === 'targetReps' ? 'text' : 'number'}
+                min={0}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={form[field]}
+                onChange={(e) =>
+                  set(field, field === 'targetReps' ? e.target.value : (parseInt(e.target.value) || 0))
+                }
+                placeholder={field === 'targetReps' ? '8-12' : undefined}
+              />
+            </label>
+          ))}
         </div>
-
         <div className="flex gap-3 pt-2">
           <button
-            onClick={handleSave}
+            onClick={() => form.name.trim() && onSave({ ...form, name: form.name.trim() })}
             disabled={!form.name.trim()}
             className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-medium text-sm rounded-lg transition-colors"
-          >
-            Save
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium text-sm rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
+          >Save</button>
+          <button onClick={onClose} className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium text-sm rounded-lg transition-colors">Cancel</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
-
 function PencilIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-    </svg>
-  );
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>;
 }
-
 function TrashIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-      <path d="M10 11v6M14 11v6" />
-      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-    </svg>
-  );
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>;
 }

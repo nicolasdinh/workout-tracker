@@ -9,6 +9,7 @@ import {
 import type { User } from 'firebase/auth';
 import {
   onAuthStateChanged,
+  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
@@ -36,6 +37,7 @@ import {
 interface StoreContextValue {
   user: User | null;
   authLoading: boolean;
+  authError: string;
   programs: Program[];
   logs: WorkoutLog[];
   persistPrograms: (programs: Program[]) => Promise<void>;
@@ -65,16 +67,38 @@ function logsRef(uid: string) {
   return collection(db, 'users', uid, 'logs');
 }
 
+function friendlyAuthError(code: string): string {
+  switch (code) {
+    case 'auth/unauthorized-domain':
+      return 'This domain is not authorized in Firebase. Add "nicolasdinh.github.io" under Firebase Console → Authentication → Settings → Authorized domains.';
+    case 'auth/popup-blocked':
+      return 'Popup was blocked by your browser.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    default:
+      return `Sign-in failed (${code}). Check the Firebase Console for details.`;
+  }
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
   const [programs, setPrograms] = useState<Program[]>([]);
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
 
-  // ── Auth listener + redirect result ────────────────────────────────────────
+  // ── Auth: handle redirect result then start listener ────────────────────────
   useEffect(() => {
-    // Pick up the result after Google redirects back to the app
-    getRedirectResult(auth).catch(() => {});
+    // Must await redirect result before settling — Firebase won't fire
+    // onAuthStateChanged with the new user until getRedirectResult resolves.
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result?.user) setAuthError('');
+      })
+      .catch((err) => {
+        setAuthError(friendlyAuthError(err.code ?? ''));
+        setAuthLoading(false);
+      });
 
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -90,18 +114,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const unsubPrograms = onSnapshot(programsRef(user.uid), (snap) => {
-      setPrograms(snap.docs.map((d) => d.data() as Program));
-    });
+    const unsubPrograms = onSnapshot(
+      programsRef(user.uid),
+      (snap) => setPrograms(snap.docs.map((d) => d.data() as Program)),
+      (err) => setAuthError(`Firestore error: ${err.message}`)
+    );
 
-    const unsubLogs = onSnapshot(logsRef(user.uid), (snap) => {
-      setLogs(snap.docs.map((d) => d.data() as WorkoutLog));
-    });
+    const unsubLogs = onSnapshot(
+      logsRef(user.uid),
+      (snap) => setLogs(snap.docs.map((d) => d.data() as WorkoutLog)),
+      (err) => setAuthError(`Firestore error: ${err.message}`)
+    );
 
-    return () => {
-      unsubPrograms();
-      unsubLogs();
-    };
+    return () => { unsubPrograms(); unsubLogs(); };
   }, [user]);
 
   // ── Mutations ───────────────────────────────────────────────────────────────
@@ -111,20 +136,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (user) {
         const batch = writeBatch(db);
         const ref = programsRef(user.uid);
-
-        // Upsert all programs in the new list
-        for (const p of newPrograms) {
-          batch.set(doc(ref, p.id), p);
-        }
-
-        // Delete any programs that were removed
+        for (const p of newPrograms) batch.set(doc(ref, p.id), p);
         const newIds = new Set(newPrograms.map((p) => p.id));
         for (const existing of programs) {
-          if (!newIds.has(existing.id)) {
-            batch.delete(doc(ref, existing.id));
-          }
+          if (!newIds.has(existing.id)) batch.delete(doc(ref, existing.id));
         }
-
         await batch.commit();
       } else {
         lsSavePrograms(newPrograms);
@@ -141,9 +157,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         const current = lsGetLogs();
         const idx = current.findIndex((l) => l.id === log.id);
-        const updated = idx >= 0
-          ? current.map((l) => (l.id === log.id ? log : l))
-          : [...current, log];
+        const updated =
+          idx >= 0 ? current.map((l) => (l.id === log.id ? log : l)) : [...current, log];
         lsSaveLogs(updated);
         setLogs(updated);
       }
@@ -167,35 +182,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ── Auth actions ────────────────────────────────────────────────────────────
 
   const signInWithGoogle = useCallback(async () => {
-    await signInWithRedirect(auth, googleProvider);
+    setAuthError('');
+    try {
+      // Popup works best on desktop; redirect is more reliable on mobile
+      await signInWithPopup(auth, googleProvider);
+    } catch (popupErr: any) {
+      if (
+        popupErr.code === 'auth/popup-blocked' ||
+        popupErr.code === 'auth/popup-closed-by-user'
+      ) {
+        // Fall back to redirect when popup is blocked
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        setAuthError(friendlyAuthError(popupErr.code ?? ''));
+      }
+    }
   }, []);
 
   const signOut = useCallback(async () => {
     await fbSignOut(auth);
+    setAuthError('');
     setPrograms(lsGetPrograms());
     setLogs(lsGetLogs());
   }, []);
 
   // ── Migration ───────────────────────────────────────────────────────────────
 
-  const migrateFromLocalStorage = useCallback(async (): Promise<{
-    programs: number;
-    logs: number;
-  }> => {
+  const migrateFromLocalStorage = useCallback(async () => {
     if (!user) throw new Error('Must be signed in to migrate');
-
     const lsPrograms = lsGetPrograms();
     const lsLogs = lsGetLogs().filter((l) => !!l.programId);
-
     const batch = writeBatch(db);
-
-    for (const p of lsPrograms) {
-      batch.set(doc(programsRef(user.uid), p.id), p);
-    }
-    for (const l of lsLogs) {
-      batch.set(doc(logsRef(user.uid), l.id), l);
-    }
-
+    for (const p of lsPrograms) batch.set(doc(programsRef(user.uid), p.id), p);
+    for (const l of lsLogs) batch.set(doc(logsRef(user.uid), l.id), l);
     await batch.commit();
     return { programs: lsPrograms.length, logs: lsLogs.length };
   }, [user]);
@@ -207,6 +226,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         authLoading,
+        authError,
         programs,
         logs,
         persistPrograms,

@@ -3,14 +3,24 @@ import { useStore } from '../context/StoreContext';
 import { getPrograms as lsGetPrograms, getLogs as lsGetLogs } from '../store';
 
 export default function SettingsPage() {
-  const { user, authLoading, signInWithGoogle, signOut, migrateFromLocalStorage } = useStore();
+  const { user, authLoading, authError, signInWithGoogle, signOut, migrateFromLocalStorage } = useStore();
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{ programs: number; logs: number } | null>(null);
   const [migrationError, setMigrationError] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
 
   const lsPrograms = lsGetPrograms();
   const lsLogs = lsGetLogs().filter((l) => !!l.programId);
   const hasLocalData = lsPrograms.length > 0 || lsLogs.length > 0;
+
+  async function handleSignIn() {
+    setSigningIn(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setSigningIn(false);
+    }
+  }
 
   async function handleMigrate() {
     setMigrating(true);
@@ -29,7 +39,7 @@ export default function SettingsPage() {
   if (authLoading) {
     return (
       <div className="max-w-2xl mx-auto p-4">
-        <p className="text-gray-400 text-sm text-center py-12">Loading…</p>
+        <p className="text-gray-400 text-sm text-center py-12">Checking sign-in status…</p>
       </div>
     );
   }
@@ -37,6 +47,14 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Settings</h1>
+
+      {/* ── Auth error banner ────────────────────────────────────────────────── */}
+      {authError && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 text-sm text-red-700 dark:text-red-400">
+          <p className="font-medium mb-1">Sign-in error</p>
+          <p>{authError}</p>
+        </div>
+      )}
 
       {/* ── Account ─────────────────────────────────────────────────────────── */}
       <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 space-y-4 shadow-sm">
@@ -53,7 +71,7 @@ export default function SettingsPage() {
                 <p className="text-xs text-gray-400 dark:text-gray-500">{user.email}</p>
               </div>
               <span className="ml-auto text-xs text-green-600 dark:text-green-400 font-medium bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">
-                Synced to Cloud
+                ✓ Synced to Cloud
               </span>
             </div>
             <button
@@ -69,11 +87,12 @@ export default function SettingsPage() {
               Sign in with Google to sync your programs and workout logs across all your devices.
             </p>
             <button
-              onClick={signInWithGoogle}
-              className="w-full py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+              onClick={handleSignIn}
+              disabled={signingIn}
+              className="w-full py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               <GoogleIcon />
-              Sign in with Google
+              {signingIn ? 'Redirecting to Google…' : 'Sign in with Google'}
             </button>
           </div>
         )}
@@ -85,7 +104,7 @@ export default function SettingsPage() {
           <div>
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Import from This Browser</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Copy any programs and logs stored locally in this browser into your cloud account.
+              Copy programs and logs stored locally in this browser into your cloud account.
             </p>
           </div>
 
@@ -129,7 +148,7 @@ export default function SettingsPage() {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {user
             ? 'Your data is stored in Firebase and synced in real-time across all signed-in devices.'
-            : 'Your data is stored locally in this browser. Sign in to sync across devices.'}
+            : 'Your data is stored locally in this browser only. Sign in to sync across devices.'}
         </p>
       </section>
     </div>

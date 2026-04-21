@@ -14,6 +14,29 @@ function formatDate(dateStr: string): string {
   });
 }
 
+function isSunday(dateStr: string): boolean {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).getDay() === 0;
+}
+
+function getWeekMonday(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  const daysFromMonday = date.getDay() === 0 ? 6 : date.getDay() - 1;
+  const monday = new Date(date);
+  monday.setDate(date.getDate() - daysFromMonday);
+  return monday.toISOString().slice(0, 10);
+}
+
+function formatWeekRange(mondayStr: string): string {
+  const [y, m, d] = mondayStr.split('-').map(Number);
+  const mon = new Date(y, m - 1, d);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const fmt = (dt: Date) => dt.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `${fmt(mon)} – ${fmt(sun)}`;
+}
+
 export default function WeightPage() {
   const { weightEntries, settings, upsertWeightEntry, deleteWeightEntry } = useStore();
   const unit = settings.weightUnit;
@@ -22,6 +45,25 @@ export default function WeightPage() {
     () => [...weightEntries].sort((a, b) => b.date.localeCompare(a.date)),
     [weightEntries]
   );
+
+  // Weekly averages: only shown once Sunday's entry exists for that week
+  const weeklyAverages = useMemo(() => {
+    const map = new Map<string, { sumLbs: number; count: number; hasSunday: boolean }>();
+    for (const e of weightEntries) {
+      const key = getWeekMonday(e.date);
+      const w = map.get(key) ?? { sumLbs: 0, count: 0, hasSunday: false };
+      map.set(key, {
+        sumLbs: w.sumLbs + e.weightLbs,
+        count: w.count + 1,
+        hasSunday: w.hasSunday || isSunday(e.date),
+      });
+    }
+    const result = new Map<string, number>();
+    for (const [key, { sumLbs, count, hasSunday }] of map) {
+      if (hasSunday) result.set(key, fromLbs(sumLbs / count, unit));
+    }
+    return result;
+  }, [weightEntries, unit]);
 
   const [date, setDate] = useState(today);
   const [weightInput, setWeightInput] = useState('');
@@ -198,35 +240,49 @@ export default function WeightPage() {
               const display = fromLbs(entry.weightLbs, unit);
               const prevEntry = sorted[i + 1];
               const d = prevEntry ? display - fromLbs(prevEntry.weightLbs, unit) : null;
+              const weekAvg = isSunday(entry.date) ? weeklyAverages.get(getWeekMonday(entry.date)) : undefined;
               return (
-                <div key={entry.id} className="flex items-center justify-between px-4 py-3">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {display} <span className="text-gray-400 font-normal">{unit}</span>
-                    </p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                      {formatDate(entry.date)}{entry.note ? ` · ${entry.note}` : ''}
-                    </p>
+                <div key={entry.id}>
+                  <div className="flex items-center justify-between px-4 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {display} <span className="text-gray-400 font-normal">{unit}</span>
+                      </p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                        {formatDate(entry.date)}{entry.note ? ` · ${entry.note}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {d !== null && (
+                        <span className={`text-xs font-medium ${d < 0 ? 'text-blue-500' : d > 0 ? 'text-orange-400' : 'text-gray-400'}`}>
+                          {d > 0 ? '+' : ''}{d.toFixed(1)}
+                        </span>
+                      )}
+                      <button
+                        onClick={() => startEdit(entry)}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"
+                      >
+                        <PencilIcon />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(entry.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 rounded"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    {d !== null && (
-                      <span className={`text-xs font-medium ${d < 0 ? 'text-blue-500' : d > 0 ? 'text-orange-400' : 'text-gray-400'}`}>
-                        {d > 0 ? '+' : ''}{d.toFixed(1)}
-                      </span>
-                    )}
-                    <button
-                      onClick={() => startEdit(entry)}
-                      className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"
-                    >
-                      <PencilIcon />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(entry.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-500 rounded"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
+                  {weekAvg !== undefined && (
+                    <div className="flex items-center justify-between px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-t border-blue-100 dark:border-blue-800/40">
+                      <div>
+                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Weekly Average</p>
+                        <p className="text-xs text-blue-500 dark:text-blue-400">{formatWeekRange(getWeekMonday(entry.date))}</p>
+                      </div>
+                      <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                        {weekAvg.toFixed(1)} <span className="text-xs font-normal">{unit}</span>
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}

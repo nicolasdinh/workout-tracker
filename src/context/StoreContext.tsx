@@ -9,7 +9,8 @@ import {
 import type { User } from 'firebase/auth';
 import {
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider,
   signOut as fbSignOut,
 } from 'firebase/auth';
@@ -70,8 +71,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [logs, setLogs] = useState<WorkoutLog[]>([]);
 
-  // ── Auth listener ───────────────────────────────────────────────────────────
+  // ── Auth listener + redirect result ────────────────────────────────────────
   useEffect(() => {
+    // Pick up the result after Google redirects back to the app
+    getRedirectResult(auth).catch(() => {});
+
     return onAuthStateChanged(auth, (u) => {
       setUser(u);
       setAuthLoading(false);
@@ -163,7 +167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // ── Auth actions ────────────────────────────────────────────────────────────
 
   const signInWithGoogle = useCallback(async () => {
-    await signInWithPopup(auth, googleProvider);
+    await signInWithRedirect(auth, googleProvider);
   }, []);
 
   const signOut = useCallback(async () => {

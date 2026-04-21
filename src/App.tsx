@@ -3,9 +3,10 @@ import { StoreProvider, useStore } from './context/StoreContext';
 import ProgramPage from './pages/ProgramPage';
 import LogPage from './pages/LogPage';
 import HistoryPage from './pages/HistoryPage';
+import WeightPage from './pages/WeightPage';
 import SettingsPage from './pages/SettingsPage';
 
-type Tab = 'program' | 'log' | 'history' | 'settings';
+type Tab = 'program' | 'log' | 'weight' | 'history' | 'settings';
 
 function AppShell() {
   const [tab, setTab] = useState<Tab>('log');
@@ -14,6 +15,7 @@ function AppShell() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'program', label: 'Program' },
     { id: 'log', label: 'Log' },
+    { id: 'weight', label: 'Weight' },
     { id: 'history', label: 'History' },
     { id: 'settings', label: 'Settings' },
   ];
@@ -62,6 +64,7 @@ function AppShell() {
       <main className="pb-8">
         {tab === 'program' && <ProgramPage />}
         {tab === 'log' && <LogPage />}
+        {tab === 'weight' && <WeightPage />}
         {tab === 'history' && <HistoryPage />}
         {tab === 'settings' && <SettingsPage />}
       </main>

@@ -3,9 +3,9 @@ import { useStore } from '../context/StoreContext';
 import { getPrograms as lsGetPrograms, getLogs as lsGetLogs } from '../store';
 
 export default function SettingsPage() {
-  const { user, authLoading, authError, signInWithGoogle, signOut, migrateFromLocalStorage } = useStore();
+  const { user, authLoading, authError, settings, saveSettings, signInWithGoogle, signOut, migrateFromLocalStorage } = useStore();
   const [migrating, setMigrating] = useState(false);
-  const [migrationResult, setMigrationResult] = useState<{ programs: number; logs: number } | null>(null);
+  const [migrationResult, setMigrationResult] = useState<{ programs: number; logs: number; weight: number } | null>(null);
   const [migrationError, setMigrationError] = useState('');
   const [signingIn, setSigningIn] = useState(false);
 
@@ -120,7 +120,7 @@ export default function SettingsPage() {
 
               {migrationResult ? (
                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-4 py-3 text-sm text-green-700 dark:text-green-400">
-                  ✓ Imported {migrationResult.programs} program{migrationResult.programs !== 1 ? 's' : ''} and {migrationResult.logs} log{migrationResult.logs !== 1 ? 's' : ''} to your account.
+                  ✓ Imported {migrationResult.programs} program{migrationResult.programs !== 1 ? 's' : ''}, {migrationResult.logs} workout log{migrationResult.logs !== 1 ? 's' : ''}, and {migrationResult.weight} weight entr{migrationResult.weight !== 1 ? 'ies' : 'y'} to your account.
                 </div>
               ) : (
                 <button
@@ -141,6 +141,29 @@ export default function SettingsPage() {
           )}
         </section>
       )}
+
+      {/* ── Units ────────────────────────────────────────────────────────────── */}
+      <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Weight Unit</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+          Applies to the weight tracker. Existing entries are stored in lbs and converted automatically.
+        </p>
+        <div className="flex gap-2">
+          {(['lbs', 'kg'] as const).map((u) => (
+            <button
+              key={u}
+              onClick={() => saveSettings({ ...settings, weightUnit: u })}
+              className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                settings.weightUnit === u
+                  ? 'bg-blue-600 border-blue-600 text-white'
+                  : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600'
+              }`}
+            >
+              {u}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {/* ── Storage info ─────────────────────────────────────────────────────── */}
       <section className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5 shadow-sm">

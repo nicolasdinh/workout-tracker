@@ -2,7 +2,7 @@ export interface Exercise {
   id: string;
   name: string;
   targetSets: number;
-  targetReps: string; // e.g. "8-12" or "10"
+  targetReps: string;
   targetRIR: number;
 }
 
@@ -32,6 +32,17 @@ export interface WorkoutLog {
   splitId: string;
   date: string; // "YYYY-MM-DD"
   sets: LoggedSet[];
+}
+
+export interface WeightEntry {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  weightLbs: number; // always stored in lbs; convert for display
+  note?: string;
+}
+
+export interface UserSettings {
+  weightUnit: 'lbs' | 'kg';
 }
 
 export type ProgressStatus = 'improved' | 'same' | 'declined' | 'new';

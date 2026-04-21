@@ -54,12 +54,13 @@ export default function WeightPage() {
     setSaveError('');
     try {
       const weightLbs = toLbs(val, unit);
-      await upsertWeightEntry({
+      const entry: import('../types').WeightEntry = {
         id: editingId ?? existingForDate?.id ?? crypto.randomUUID(),
         date,
         weightLbs,
-        note: note.trim() || undefined,
-      });
+      };
+      if (note.trim()) entry.note = note.trim();
+      await upsertWeightEntry(entry);
       setWeightInput('');
       setNote('');
       setEditingId(null);

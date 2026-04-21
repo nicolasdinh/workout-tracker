@@ -67,16 +67,18 @@ function logsRef(uid: string) {
   return collection(db, 'users', uid, 'logs');
 }
 
-function friendlyAuthError(code: string): string {
+function friendlyAuthError(err: any): string {
+  const code: string = err?.code ?? '';
+  const message: string = err?.message ?? String(err);
   switch (code) {
     case 'auth/unauthorized-domain':
       return 'This domain is not authorized in Firebase. Add "nicolasdinh.github.io" under Firebase Console → Authentication → Settings → Authorized domains.';
     case 'auth/popup-blocked':
-      return 'Popup was blocked by your browser.';
+      return 'Popup was blocked by your browser. Trying redirect instead…';
     case 'auth/network-request-failed':
       return 'Network error. Check your connection and try again.';
     default:
-      return `Sign-in failed (${code}). Check the Firebase Console for details.`;
+      return code ? `Sign-in error (${code}): ${message}` : `Sign-in error: ${message}`;
   }
 }
 
@@ -96,7 +98,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (result?.user) setAuthError('');
       })
       .catch((err) => {
-        setAuthError(friendlyAuthError(err.code ?? ''));
+        setAuthError(friendlyAuthError(err));
         setAuthLoading(false);
       });
 
@@ -194,7 +196,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // Fall back to redirect when popup is blocked
         await signInWithRedirect(auth, googleProvider);
       } else {
-        setAuthError(friendlyAuthError(popupErr.code ?? ''));
+        setAuthError(friendlyAuthError(popupErr));
       }
     }
   }, []);

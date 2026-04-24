@@ -184,6 +184,11 @@ export default function HistoryPage() {
                                   </div>
                                 );
                               })}
+                              {log.exerciseNotes?.[ex.id] && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 italic mt-2 px-1 border-l-2 border-gray-200 dark:border-gray-600 pl-2">
+                                  {log.exerciseNotes[ex.id]}
+                                </p>
+                              )}
                             </div>
                           </div>
                         );

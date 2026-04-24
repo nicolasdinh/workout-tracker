@@ -32,6 +32,7 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
   const [selectedSplitId, setSelectedSplitId] = useState('');
   const [logDate, setLogDate] = useState(today);
   const [drafts, setDrafts] = useState<ExerciseDraft[]>([]);
+  const [exerciseNotes, setExerciseNotes] = useState<Record<string, string>>({});
   const [prevLog, setPrevLog] = useState<WorkoutLog | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -54,6 +55,7 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
       .filter((l) => l.programId === selectedProgramId && l.splitId === selectedSplit.id && l.date < logDate)
       .sort((a, b) => b.date.localeCompare(a.date))[0] ?? null;
     setDrafts(buildDraftsFromSplit(selectedSplit, existing));
+    setExerciseNotes(existing?.exerciseNotes ?? {});
     setPrevLog(prev);
     setSaved(false);
   }, [selectedProgramId, selectedSplitId, logDate, selectedSplit, logs]);
@@ -93,13 +95,18 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
     const existing = logs.find(
       (l) => l.programId === selectedProgramId && l.splitId === selectedSplit.id && l.date === logDate
     );
-    await ctxUpsertLog({
+    const filteredNotes = Object.fromEntries(
+      Object.entries(exerciseNotes).filter(([, v]) => v.trim())
+    );
+    const log: import('../types').WorkoutLog = {
       id: existing?.id ?? crypto.randomUUID(),
       programId: selectedProgramId,
       splitId: selectedSplit.id,
       date: logDate,
       sets,
-    });
+    };
+    if (Object.keys(filteredNotes).length > 0) log.exerciseNotes = filteredNotes;
+    await ctxUpsertLog(log);
     setSaved(true);
     onLogSaved?.();
   }
@@ -220,6 +227,16 @@ export default function LogPage({ onLogSaved }: { onLogSaved?: () => void }) {
                   <button onClick={() => removeSet(exIdx)} className="px-3 py-1.5 text-xs text-gray-400 hover:text-red-500 border border-dashed border-gray-200 dark:border-gray-600 hover:border-red-400 rounded-lg transition-colors">− Remove</button>
                 )}
               </div>
+              <textarea
+                rows={2}
+                className="w-full mt-1 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs placeholder-gray-300 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Notes for this exercise (optional) — how it felt, discomfort, reasons for performance…"
+                value={exerciseNotes[exDraft.exerciseId] ?? ''}
+                onChange={(e) => {
+                  setSaved(false);
+                  setExerciseNotes((prev) => ({ ...prev, [exDraft.exerciseId]: e.target.value }));
+                }}
+              />
             </div>
           </div>
         );

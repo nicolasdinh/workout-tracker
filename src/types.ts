@@ -32,6 +32,7 @@ export interface WorkoutLog {
   splitId: string;
   date: string; // "YYYY-MM-DD"
   sets: LoggedSet[];
+  exerciseNotes?: Record<string, string>; // exerciseId → per-exercise note
 }
 
 export interface WeightEntry {

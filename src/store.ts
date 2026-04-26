@@ -55,8 +55,11 @@ export function getProgress(
   prev: LoggedSet | undefined
 ): ProgressStatus {
   if (!prev) return 'new';
-  if (curr.weight < prev.weight || curr.reps < prev.reps) return 'declined';
-  if (curr.weight > prev.weight || curr.reps > prev.reps) return 'improved';
+  if (curr.weight > prev.weight) return 'improved';
+  if (curr.weight < prev.weight) return 'declined';
+  // weight is equal — reps decide
+  if (curr.reps > prev.reps) return 'improved';
+  if (curr.reps < prev.reps) return 'declined';
   return 'same';
 }
 

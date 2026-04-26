@@ -126,7 +126,7 @@ export default function ProgramPage() {
   return (
     <div className="max-w-2xl mx-auto p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Programs</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-200">Programs</h1>
         <button
           onClick={() => setAddingProgramName(true)}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -139,7 +139,7 @@ export default function ProgramPage() {
         <div className="flex gap-2">
           <input
             autoFocus
-            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Program name (e.g. PPL, 5/3/1)"
             value={newProgramName}
             onChange={(e) => setNewProgramName(e.target.value)}
@@ -149,7 +149,7 @@ export default function ProgramPage() {
             }}
           />
           <button onClick={addProgram} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">Save</button>
-          <button onClick={() => { setAddingProgramName(false); setNewProgramName(''); }} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
+          <button onClick={() => { setAddingProgramName(false); setNewProgramName(''); }} className="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm rounded-lg">Cancel</button>
         </div>
       )}
 
@@ -245,7 +245,7 @@ function ProgramCard({
         {renaming ? (
           <input
             autoFocus
-            className="flex-1 mr-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 mr-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -257,7 +257,7 @@ function ProgramCard({
           />
         ) : (
           <div className="flex items-center gap-3 min-w-0">
-            <span className="font-semibold text-gray-900 dark:text-gray-100 truncate">{program.name}</span>
+            <span className="font-semibold text-gray-900 dark:text-gray-300 truncate">{program.name}</span>
             <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
               {splitCount} split{splitCount !== 1 ? 's' : ''} · {exerciseCount} exercise{exerciseCount !== 1 ? 's' : ''}
             </span>
@@ -292,7 +292,7 @@ function ProgramCard({
             <div className="flex gap-2 pt-1">
               <input
                 autoFocus
-                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Split name (e.g. Push Day)"
                 value={newSplitName}
                 onChange={(e) => setNewSplitName(e.target.value)}
@@ -302,7 +302,7 @@ function ProgramCard({
                 }}
               />
               <button onClick={commitAddSplit} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg">Add</button>
-              <button onClick={() => { setAddingSplit(false); setNewSplitName(''); }} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm rounded-lg">Cancel</button>
+              <button onClick={() => { setAddingSplit(false); setNewSplitName(''); }} className="px-3 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm rounded-lg">Cancel</button>
             </div>
           ) : (
             <button onClick={() => setAddingSplit(true)} className="w-full py-2 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 text-gray-400 dark:text-gray-500 hover:text-blue-500 text-sm rounded-lg transition-colors">
@@ -343,7 +343,7 @@ function SplitCard({ split, isExpanded, onToggle, onRename, onDelete, onAddExerc
         {renaming ? (
           <input
             autoFocus
-            className="flex-1 mr-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 mr-2 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -355,7 +355,7 @@ function SplitCard({ split, isExpanded, onToggle, onRename, onDelete, onAddExerc
           />
         ) : (
           <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{split.name}</span>
+            <span className="text-sm font-medium text-gray-800 dark:text-gray-300 truncate">{split.name}</span>
             <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">{split.exercises.length} exercise{split.exercises.length !== 1 ? 's' : ''}</span>
           </div>
         )}
@@ -371,7 +371,7 @@ function SplitCard({ split, isExpanded, onToggle, onRename, onDelete, onAddExerc
           {split.exercises.map((ex, i) => (
             <div key={ex.id} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
               <div className="min-w-0">
-                <p className="text-sm text-gray-800 dark:text-gray-200">{i + 1}. {ex.name}</p>
+                <p className="text-sm text-gray-800 dark:text-gray-300">{i + 1}. {ex.name}</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{ex.targetSets} sets · {ex.targetReps} reps · RIR {ex.targetRIR}</p>
               </div>
               <div className="flex gap-1 ml-2 shrink-0">
@@ -401,12 +401,12 @@ function ExerciseModal({ exercise, onSave, onClose }: { exercise: Exercise; onSa
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{exercise.name ? 'Edit Exercise' : 'New Exercise'}</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-200">{exercise.name ? 'Edit Exercise' : 'New Exercise'}</h2>
         <label className="block space-y-1">
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Exercise Name</span>
           <input
             autoFocus
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             value={form.name}
             onChange={(e) => set('name', e.target.value)}
             placeholder="e.g. Bench Press"
@@ -422,7 +422,7 @@ function ExerciseModal({ exercise, onSave, onClose }: { exercise: Exercise; onSa
               <input
                 type={field === 'targetReps' ? 'text' : 'number'}
                 min={0}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form[field]}
                 onChange={(e) =>
                   set(field, field === 'targetReps' ? e.target.value : (parseInt(e.target.value) || 0))
@@ -438,7 +438,7 @@ function ExerciseModal({ exercise, onSave, onClose }: { exercise: Exercise; onSa
             disabled={!form.name.trim()}
             className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white font-medium text-sm rounded-lg transition-colors"
           >Save</button>
-          <button onClick={onClose} className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 font-medium text-sm rounded-lg transition-colors">Cancel</button>
+          <button onClick={onClose} className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium text-sm rounded-lg transition-colors">Cancel</button>
         </div>
       </div>
     </div>

@@ -46,7 +46,7 @@ export default function WeightPage() {
     [weightEntries]
   );
 
-  // Weekly averages: only shown once Sunday's entry exists for that week
+  // Weekly averages: shown once Sunday is logged OR any entry exists in a later week
   const weeklyAverages = useMemo(() => {
     const map = new Map<string, { sumLbs: number; count: number; hasSunday: boolean }>();
     for (const e of weightEntries) {
@@ -60,7 +60,10 @@ export default function WeightPage() {
     }
     const result = new Map<string, number>();
     for (const [key, { sumLbs, count, hasSunday }] of map) {
-      if (hasSunday) result.set(key, fromLbs(sumLbs / count, unit));
+      const [y, m, d] = key.split('-').map(Number);
+      const sunday = new Date(y, m - 1, d + 6).toISOString().slice(0, 10);
+      const hasLaterEntry = weightEntries.some((e) => e.date > sunday);
+      if (hasSunday || hasLaterEntry) result.set(key, fromLbs(sumLbs / count, unit));
     }
     return result;
   }, [weightEntries, unit]);
@@ -240,7 +243,9 @@ export default function WeightPage() {
               const display = fromLbs(entry.weightLbs, unit);
               const prevEntry = sorted[i + 1];
               const d = prevEntry ? display - fromLbs(prevEntry.weightLbs, unit) : null;
-              const weekAvg = isSunday(entry.date) ? weeklyAverages.get(getWeekMonday(entry.date)) : undefined;
+              const thisWeekKey = getWeekMonday(entry.date);
+              const isLastInWeek = !prevEntry || getWeekMonday(prevEntry.date) !== thisWeekKey;
+              const weekAvg = isLastInWeek ? weeklyAverages.get(thisWeekKey) : undefined;
               return (
                 <div key={entry.id}>
                   <div className="flex items-center justify-between px-4 py-3">
